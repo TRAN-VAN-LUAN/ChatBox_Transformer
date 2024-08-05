@@ -39,9 +39,9 @@ def transform_load(df):
     df = df.fillna('')
     
     # Apply punctuation removal and tokenization to the content column
-    df['Content'] = df['Content'].apply(lambda x: x.lower()) # Lowercase content
-    df['Content'] = df['Content'].apply(remove_punctuation)  # Remove punctuation and special chars
-    df['Content'] = df['Content'].apply(ViTokenizer.tokenize)  # Tokenize Vietnamese text
+    df['Detailed Content'] = df['Detailed Content'].apply(lambda x: x.lower()) # Lowercase Detailed Content
+    df['Detailed Content'] = df['Detailed Content'].apply(remove_punctuation)  # Remove punctuation and special chars
+    df['Detailed Content'] = df['Detailed Content'].apply(ViTokenizer.tokenize)  # Tokenize Vietnamese text
 
     # Apply punctuation removal and tokenization to the title column
     df['Title'] = df['Title'].apply(lambda x: x.lower()) # Lowercase title
