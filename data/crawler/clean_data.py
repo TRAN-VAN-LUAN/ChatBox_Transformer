@@ -1,19 +1,16 @@
 import pandas as pd
-import os
 import re
 import string
-from tqdm import tqdm
 from pyvi import ViTokenizer
 
-
 def remove_punctuation(comment):
-    # Create a translation table
+    # Tạo bảng dịch để loại bỏ dấu câu
     translator = str.maketrans('', '', string.punctuation)
-    # Remove punctuation
+    # Loại bỏ dấu câu
     new_string = comment.translate(translator)
-    # Remove redundant space and break sign
+    # Loại bỏ khoảng trắng và dấu xuống dòng thừa
     new_string = re.sub('[\n ]+', ' ', new_string)
-    # Remove emoji icon
+    # Loại bỏ biểu tượng cảm xúc
     emoji_pattern = re.compile("["
         u"\U0001F600-\U0001F64F"  # emoticons
         u"\U0001F300-\U0001F5FF"  # symbols & pictographs
@@ -36,39 +33,43 @@ def remove_punctuation(comment):
     new_string = re.sub(emoji_pattern, '', new_string)
     return new_string
 
-def get_info(topic, processed_news):
-    temp = processed_news[processed_news.topic == topic]
-    return temp['article_id'].tolist(), temp['tag'].tolist()
-
 def transform_load(df):
-    """Transform the raw data to usable text and apply processing functions
-    """
-    # Select necessary columns and fill NaN values
-    processed_news = df[['title', 'content', 'subtopic']].fillna('')
+    """Transform the raw data to usable text and apply processing functions."""
+    # Fill NaN values with empty strings
+    df = df.fillna('')
     
-    # Apply punctuation removal and tokenization
-    processed_news['content'] = processed_news['content'].apply(lambda x: x.lower())
-    processed_news['content'] = processed_news['content'].apply(remove_punctuation)
-    processed_news['content'] = processed_news['content'].apply(ViTokenizer.tokenize)
-    # Apply punctuation removal and tokenization
-    processed_news['title'] = processed_news['title'].apply(lambda x: x.lower())
-    processed_news['title'] = processed_news['title'].apply(remove_punctuation)
-    processed_news['title'] = processed_news['title'].apply(ViTokenizer.tokenize)
+    # Apply punctuation removal and tokenization to the content column
+    df['Detailed Content'] = df['Detailed Content'].apply(lambda x: x.lower()) # Lowercase Detailed Content
+    df['Detailed Content'] = df['Detailed Content'].apply(remove_punctuation)  # Remove punctuation and special chars
+    df['Detailed Content'] = df['Detailed Content'].apply(ViTokenizer.tokenize)  # Tokenize Vietnamese text
 
-    return processed_news
+    # Apply punctuation removal and tokenization to the title column
+    df['Title'] = df['Title'].apply(lambda x: x.lower()) # Lowercase title
+    df['Title'] = df['Title'].apply(remove_punctuation)  # Remove punctuation and special chars
+    df['Title'] = df['Title'].apply(ViTokenizer.tokenize)  # Tokenize Vietnamese text
 
-def save_to_csv(processed_news):
-    """Save cleaned data to CSV
-    """
-    processed_news.to_csv('data/csv/articles.csv', index=False)
+    return df
+
+def save_to_csv(processed_news, output_path):
+    """Save cleaned data to CSV."""
+    processed_news.to_csv(output_path, index=False, encoding='utf-8')
 
 # Example usage
 if __name__ == "__main__":
-    # Example DataFrame creation (replace with your actual DataFrame loading)
-    df = pd.read_csv('data/csv/articles.csv')
+    # Path to your input CSV file
+    input_csv_path = 'output2.csv'  # Change this to your actual CSV file path
+
+    # Load the CSV file
+    df = pd.read_csv(input_csv_path)
 
     # Transform and process the data
     processed_news = transform_load(df)
 
+    # Path to save the processed CSV
+    output_csv_path = 'processed_output.csv'
+    
     # Save processed data to CSV
-    save_to_csv(processed_news)
+    save_to_csv(processed_news, output_csv_path)
+
+    print(f"Processed data has been saved to {output_csv_path}.")
+
