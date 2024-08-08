@@ -18,9 +18,11 @@ def load_json_file(file_path):
         return None
     
 
-def extract_section_data(section):
-    # Kiểm tra xem section có phải là loại 'topicText' không
-    is_topic_text_section = section.get('data-testid') == 'topicGHead'
+def extract_section_data(section, json_title=None):
+    """
+    Extracts data from a given section, ensuring each child section is processed independently,
+    and using the appropriate title based on available tags.
+    """
     
     # Lấy tiêu đề chính từ thẻ <h2> của phần tử <section> lớn
     h2_tag = section.find('h2')
@@ -28,27 +30,37 @@ def extract_section_data(section):
 
     section_data = []
     
-    # Xử lý các thẻ <section> có data-testid là 'topicGHead' hoặc có data-testid là 'topicText'
+    # Xử lý các thẻ <section> con có 'data-testid' là 'topicGHead'
     child_sections = section.find_all('section', attrs={'data-testid': 'topicGHead'})
-    
-    for child_section in child_sections:
-        h3_tags = child_section.find_all('h3')
-        h3_titles = [h3.get_text(strip=True) for h3 in h3_tags]
 
-        span_tags = child_section.find_all('span', attrs={'data-testid': 'topicText'})
-        span_contents = [span.get_text(strip=True) for span in span_tags]
+    if child_sections:
+        # Xử lý các section con nếu có
+        for child_section in child_sections:
+            h3_tags = child_section.find_all('h3')
+            h3_titles = [h3.get_text(strip=True) for h3 in h3_tags]
 
-        li_tags = child_section.find_all('li', attrs={'data-testid': 'topicListItem'})
-        li_contents = [li.get_text(strip=True) for li in li_tags]
+            # Chỉ lấy nội dung <span> con của section này
+            span_tags = child_section.find_all('span', attrs={'data-testid': 'topicText'})
+            span_contents = [span.get_text(strip=True) for span in span_tags]
 
-        for h3_title in h3_titles:
-            title = f"{h2_title} - {h3_title}".strip()
-            content = '\n'.join(span_contents + li_contents).strip()
-            if title:
-                section_data.append((title, content))
-    
-    # Nếu section không có con, kiểm tra và lấy các thẻ <h3> từ section có 'topicText'
-    if not child_sections and is_topic_text_section:
+            li_tags = child_section.find_all('li', attrs={'data-testid': 'topicListItem'})
+            li_contents = [li.get_text(strip=True) for li in li_tags]
+
+            # Ensure each child section has its own unique content row
+            if h3_titles:
+                for h3_title in h3_titles:
+                    title = f"{h2_title} - {h3_title}".strip() if h2_title else h3_title.strip()
+                    content = '\n'.join(span_contents + li_contents).strip()
+                    if title:
+                        section_data.append((title, content))
+            else:
+                # If no h3, still process content for this section
+                title = h2_title.strip() if h2_title else json_title.strip() if json_title else ''
+                content = '\n'.join(span_contents + li_contents).strip()
+                if title:
+                    section_data.append((title, content))
+    else:
+        # Xử lý nếu không có section con, chỉ có section cha
         h3_tags = section.find_all('h3')
         h3_titles = [h3.get_text(strip=True) for h3 in h3_tags]
 
@@ -58,17 +70,32 @@ def extract_section_data(section):
         li_tags = section.find_all('li', attrs={'data-testid': 'topicListItem'})
         li_contents = [li.get_text(strip=True) for li in li_tags]
 
-        for h3_title in h3_titles:
-            title = f"{h2_title} - {h3_title}".strip()
+        if h3_titles:
+            for h3_title in h3_titles:
+                title = f"{h2_title} - {h3_title}".strip() if h2_title else h3_title.strip()
+                content = '\n'.join(span_contents + li_contents).strip()
+                if title:
+                    section_data.append((title, content))
+        else:
+            title = h2_title.strip() if h2_title else json_title.strip() if json_title else ''
             content = '\n'.join(span_contents + li_contents).strip()
             if title:
                 section_data.append((title, content))
 
+    # Nếu không có section và không có tiêu đề, dùng tiêu đề JSON
+    if not section_data and json_title:
+        title = json_title.strip()
+        content = '\n'.join(span_contents + li_contents).strip()
+        if title:
+            section_data.append((title, content))
+
     return section_data
 
 
-# Hàm để lấy nội dung từ một URL, bỏ qua các section và li không mong muốn
 def scrape_page(url, json_title=None):
+    """
+    Scrapes content from a webpage given by `url`, using `json_title` as a fallback title.
+    """
     try:
         response = requests.get(url)
         response.raise_for_status()
@@ -77,9 +104,11 @@ def scrape_page(url, json_title=None):
         sections = soup.find_all('section', attrs={'data-testid': lambda x: x != 'footer'})
         section_data = []
 
+        # Process each top-level section to extract data
         for section in sections:
-            section_data.extend(extract_section_data(section))
+            section_data.extend(extract_section_data(section, json_title))
 
+        # If no data was collected from sections, attempt to scrape <div> content
         if not section_data:
             divs = soup.find_all('div', attrs={'data-testid': 'topic-main-content'})
             for div in divs:
@@ -139,9 +168,10 @@ def process_data(data, csv_writer):
         else:
             print("Children:")
             process_data(item["children"], csv_writer)
+            
 
 # Tạo file CSV và ghi dữ liệu
-def save_data_to_csv(data, file_path='output2.csv'):
+def save_data_to_csv(data, file_path='../csv/medical.csv'):
     with open(file_path, mode='w', newline='', encoding='utf-8') as file:
         csv_writer = csv.writer(file)
         # Ghi tiêu đề cột
@@ -150,7 +180,7 @@ def save_data_to_csv(data, file_path='output2.csv'):
         process_data(data, csv_writer)
         
 # Load JSON data from a file
-json_file_path = '../listData.json'
+json_file_path = '../json/listData.json'
 json_data = load_json_file(json_file_path)
 
 if json_data:
