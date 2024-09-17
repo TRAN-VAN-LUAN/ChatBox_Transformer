@@ -17,7 +17,7 @@ def load_json_file(file_path):
         print(f"Error decoding JSON: {e}")
         return None
 
-def extract_innermost_section(section, parent_title, json_title=None):
+def extract_innermost_section(section, parent_title, json_title):
     """
     Trích xuất dữ liệu từ phần nhỏ nhất (innermost section),
     chỉ xử lý các phần không chứa phần con.
@@ -36,7 +36,7 @@ def extract_innermost_section(section, parent_title, json_title=None):
 
     return innermost_data
 
-def extract_section_data(section, json_title=None):
+def extract_section_data(section, json_title):
     """
     Trích xuất dữ liệu từ một phần (section) cụ thể, đảm bảo chỉ xử lý phần nhỏ nhất và gán đúng tiêu đề.
     """
@@ -50,13 +50,26 @@ def extract_section_data(section, json_title=None):
     else:
         h2_title = ''
 
-    # Xử lý các thẻ <section> con có 'data-testid' là 'topicGHead'
+    # Kiểm tra section hiện tại có 'data-testid' là 'topicGHead' và có span bắt đầu bằng "Tài liệu tham khảo"
+    if section.get('data-testid') == 'topicGHead':
+        span_tag = section.find('span')
+        if span_tag and span_tag.get_text(strip=True).startswith("Tài liệu tham khảo"):
+            return section_data  # Bỏ qua toàn bộ section này
+
+    # Tìm tất cả các section con
     child_sections = section.find_all('section')
+
     if child_sections:
         for child_section in child_sections:
+            # Kiểm tra các section con
+            if child_section.get('data-testid') == 'topicGHead':
+                span_tag = child_section.find('span')
+                if span_tag and span_tag.get_text(strip=True).startswith("Tài liệu tham khảo"):
+                    continue  # Bỏ qua section này
+
             section_data.extend(extract_innermost_section(child_section, h2_title, json_title=json_title))
     else:
-        # Xử lý nếu không có section con, chỉ có section cha
+        # Xử lý section cha nếu không có section con
         section_data.extend(process_child_section(section, h2_title, json_title=json_title))
 
     # Xử lý các thẻ <p> với 'data-testid' là 'topicPara' ở bất kỳ đâu trong tài liệu
@@ -64,7 +77,7 @@ def extract_section_data(section, json_title=None):
 
     return section_data
 
-def process_child_section(child_section, parent_title, json_title=None):
+def process_child_section(child_section, parent_title, json_title):
     """
     Xử lý một phần con (child section), xử lý các thẻ <h3> và <p> với các phương án thay thế thích hợp.
     """
@@ -81,39 +94,62 @@ def process_child_section(child_section, parent_title, json_title=None):
 
     if h3_titles:
         for h3_title in h3_titles:
-            title = f"{parent_title} - {h3_title}".strip() if parent_title else h3_title.strip()
+            title = f"{parent_title} về {h3_title}".strip() if parent_title else f"{json_title} về {h3_title}".strip()
             content = '\n'.join(span_contents + li_contents).strip()
             if title:
                 section_data.append((title, content))
     
     return section_data
 
-def process_p_tags(soup, parent_title, json_title=None):
+def process_p_tags(soup, parent_title, json_title):
     """
     Xử lý các thẻ <p> với 'data-testid' là 'topicPara' ở bất kỳ đâu trong tài liệu.
+    Bỏ qua các thẻ <span> có nội dung lặp lại và không thêm vào section_data nếu độ dài cuối cùng vượt quá max_length.
     """
     section_data = []
     p_tags = soup.find_all('p', attrs={'data-testid': 'topicPara'})
+    span_contents = []
 
     for p_tag in p_tags:
+        # Kiểm tra nếu thẻ <p> nằm trong thẻ <li>, nếu có thì bỏ qua
+        if p_tag.find_parent('li'):
+            continue
+
         b_tag = p_tag.find('b', attrs={'data-testid': 'topicBold'})
         if b_tag and b_tag.find('span'):
             b_title = b_tag.find('span').get_text(strip=True)
-            title = f"{parent_title} trên {b_title}".strip() if parent_title else b_title.strip()
-            span_contents = [span.get_text(strip=True) for span in p_tag.find_all('span')]
-            content = '\n'.join(span_contents).strip()
-            if title:
+            title = f"{parent_title} về {b_title}".strip() if parent_title else f"{json_title} về {b_title}".strip()
+
+            # Lấy nội dung các thẻ <span> trong thẻ <p>
+            current_spans = [span.get_text(strip=True) for span in p_tag.find_all('span')]
+            unique_spans = []
+            for span_content in current_spans:
+                if span_content not in unique_spans:  # Loại bỏ các nội dung lặp lại
+                    unique_spans.append(span_content)
+
+            # Kiểm tra nếu thẻ <ul> là thẻ tiếp theo
+            ul_tag = p_tag.find_next_sibling('ul')
+            if ul_tag:
+                ul_spans = [span.get_text(strip=True) for span in ul_tag.find_all('span')]
+                for ul_span_content in ul_spans:
+                    if ul_span_content not in unique_spans:  # Loại bỏ các nội dung lặp lại trong <ul>
+                        unique_spans.append(ul_span_content)
+
+            content = '\n'.join(unique_spans).strip()
+
+            # Kiểm tra độ dài của content trước khi thêm vào section_data
+            if title and len(content) >= 50:
                 section_data.append((title, content))
-    
+
     if not section_data and json_title:
         title = json_title.strip()
         content = '\n'.join(span_contents).strip()
-        if title:
+        if title and len(content) >= 50:
             section_data.append((title, content))
 
     return section_data
 
-def scrape_page(url, json_title=None):
+def scrape_page(url, json_title):
     """
     Lấy nội dung từ trang web dựa trên `url`, sử dụng `json_title` làm tiêu đề dự phòng.
     """
@@ -156,7 +192,7 @@ def process_data(data, csv_writer):
         print("Link:", link)
 
         if "children" not in item or len(item["children"]) == 0:
-            sections_data = scrape_page(link)
+            sections_data = scrape_page(link, title)
             if sections_data:
                 for section_title, content in sections_data:
                     csv_writer.writerow([section_title, content, link])
