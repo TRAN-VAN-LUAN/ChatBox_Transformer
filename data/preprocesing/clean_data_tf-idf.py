@@ -62,46 +62,6 @@ def remove_punctuation(text, keep_period=False):
     
     return text
 
-def split_text_by_length(text, max_length=150):
-    """Split text into chunks with a maximum number of tokens."""
-    sentences = sent_tokenize(text)
-    chunks = []
-    current_chunk = []
-    current_length = 0
-    
-    for sentence in sentences:
-        sentence_length = len(tokenizer.encode(sentence, add_special_tokens=False))
-        
-        if sentence_length > max_length:
-            # Split long sentences
-            while sentence_length > max_length:
-                part = tokenizer.decode(tokenizer.encode(sentence, add_special_tokens=False)[:max_length], skip_special_tokens=True)
-                chunks.append(part)
-                sentence = sentence[len(tokenizer.decode(tokenizer.encode(part, add_special_tokens=False))):]
-                sentence_length = len(tokenizer.encode(sentence, add_special_tokens=False))
-            
-            # Add the remaining part of the sentence
-            if sentence_length <= max_length:
-                if current_length + sentence_length > max_length:
-                    chunks.append(" ".join(current_chunk))
-                    current_chunk = []
-                    current_length = 0
-                current_chunk.append(sentence)
-                current_length += sentence_length
-        else:
-            if current_length + sentence_length > max_length:
-                chunks.append(" ".join(current_chunk))
-                current_chunk = [sentence]
-                current_length = sentence_length
-            else:
-                current_chunk.append(sentence)
-                current_length += sentence_length
-
-    # Add remaining chunk
-    if current_chunk:
-        chunks.append(" ".join(current_chunk))
-    
-    return chunks
 
 def transform_load(df):
     """Transform raw data to usable text, apply processing functions, and handle splitting."""
@@ -113,21 +73,22 @@ def transform_load(df):
     for _, row in df.iterrows():
         title = row['Title']
         content = row['Detailed Content']
+        answer = row['Answer_of_Title']
         reference_link = row['Reference Link']
-        context = row['Context']
+        answer_start= row['Answer_Start']
+        answer_end = row['Answer_End']
         
-        # Split and clean content
-        content_chunks = split_text_by_length(content, max_length=1024)
         
-        for chunk in content_chunks:
-            cleaned_chunk = clean_text(chunk)
-            new_row = {
+        # Clean the text data
+        new_row = {
                 'Title': clean_text(title),
-                'Detailed Content': cleaned_chunk,
+                'Detailed Content': clean_text(content, keep_period= True),
                 'Reference Link': reference_link,
-                'Context': clean_text(context, keep_period=True)
+                'Answer_of_Title': clean_text(answer),
+                'Answer_Start': answer_start,
+                'Answer_End': answer_end
             }
-            new_rows.append(new_row)
+        new_rows.append(new_row)
     
     # Convert new_rows into a DataFrame
     new_df = pd.DataFrame(new_rows)
@@ -140,8 +101,8 @@ def save_to_csv(processed_news, output_path):
 
 # Example usage
 if __name__ == "__main__":
-    input_csv_path = '../csv/medical_with_context.csv'
-    output_csv_path = '../csv/processed_medical_cleaned.csv'
+    input_csv_path = '../csv/medical_tf-idf.csv'
+    output_csv_path = '../csv/processed_medical_tf-idf.csv'
     
     # Load the CSV file
     df = pd.read_csv(input_csv_path)
