@@ -1,6 +1,7 @@
 <div style="wight: 100%; height: 100%;">
     <img src="./data/asset/img/work_flow.webp" alt="QA System Flowchart" width="500" style="display: block; margin-left: 100px;"/>
 </div>
+
 ## BARTpho QA Model with Vietnamese Medical Dataset
 
 This repository implements a Question Answering (QA) model utilizing the BARTpho architecture, fine-tuned on a Vietnamese medical dataset. The model is designed to predict the answer span from a given passage based on the associated question.
