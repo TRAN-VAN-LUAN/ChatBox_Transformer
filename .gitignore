@@ -1,1 +1,21 @@
 venv/
+
+# Bỏ qua thư mục checkpoints
+checkpoints/
+
+# Bỏ qua các file mô hình đã lưu
+*.h5
+*.ckpt
+*.pt
+*.model
+*.csv
+*.safetensors
+
+# Bỏ qua các logs và tệp tạm thời
+logs/
+output/
+tmp/
+
+# Bỏ qua cache của Python
+__pycache__/
+*.pyc
