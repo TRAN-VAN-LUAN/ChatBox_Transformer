@@ -1,4 +1,4 @@
-
+![QA System Flowchart](./data/asset/img/work_flow.webp)
 ## BARTpho QA Model with Vietnamese Medical Dataset
 
 This repository implements a Question Answering (QA) model utilizing the BARTpho architecture, fine-tuned on a Vietnamese medical dataset. The model is designed to predict the answer span from a given passage based on the associated question.
